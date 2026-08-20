@@ -77,17 +77,25 @@ relates them to software functional requirements and compliance regimes
 (ASVS and similar standards). To connect your organisation's results, an
 admin:
 
-1. Generates a fine-grained PAT: GitHub → Settings → Developer settings →
-   Fine-grained tokens → Generate.
-   - **Resource owner**: your organisation.
+1. Generates a fine-grained PAT:
+   - GitHub → click your avatar (top right) → **Settings** → scroll to the
+     bottom of the left menu → **Developer settings** → **Personal access
+     tokens → Fine-grained tokens** → **Generate new token**.
+   - **Resource owner**: your organisation (if it's not listed: org →
+     Settings → Personal access tokens → allow fine-grained tokens, no
+     approval required, then retry).
    - **Repository access**: All repositories.
-   - **Permissions**: Contents → Read-only, Actions → Read-only
-     (Read **and write** to also enable the dashboard's *Scan now*
-     button).
-   - If the repository picker is empty: org → Settings → Personal access
-     tokens → allow fine-grained tokens, no approval required.
-2. Enters the org name and token into the dashboard's
-   **Settings → GitHub organisations**.
+   - **Permissions** (Repository permissions section): **Contents →
+     Read-only**, **Actions → Read-only** (Read **and write** to also
+     enable the dashboard's *Scan now* button).
+   - Generate, then copy the token (starts `github_pat_`).
+2. Enters the org name and token into the dashboard:
+   - Open the assurance-scan dashboard → sidebar **⚙ Settings** → the
+     **Organisation credentials** section (admins only).
+   - Type the organisation name exactly as it appears in GitHub URLs
+     (e.g. `acme-corp`, not `Acme Corp`).
+   - Paste the token → **Add org**. Verification is immediate — a green
+     confirmation names the org and how many repos are visible.
 
 The service verifies the token and begins ingesting scan results — and
 nothing else — within a minute. Registration can be removed at any time.
