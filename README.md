@@ -1,44 +1,48 @@
 # assurance-scan-ci
 
-Public workflow + template for [assurance-scan](https://github.com/26457513/assurance-scan)
-CI scanning. The scanner image (`ghcr.io/26457513/assurance-scan-ci`) is
-public glue over open-source scanners (semgrep, trivy, grype, osv-scanner,
-syft) — always current at run time. All scanning runs on **your** GitHub
-compute; nothing reports anywhere else unless you opt in below.
+CI security scanning for GitHub repositories — one workflow file, no secrets,
+no infrastructure. Scans run on **your** GitHub Actions compute using
+always-current open-source scanners; results land in your repo's Actions
+summary and PR comments, and optionally in a hosted
+[assurance-scan](https://github.com/26457513/assurance-scan) dashboard.
 
-## Onboarding guide (administrator)
+## Architecture
 
-Two one-time steps, then one file per repository.
+```
+your repo ──push/PR──▶ GitHub Actions ──▶ scan.yml
+                                            │
+                    ┌───────────────────────┘
+                    ▼
+        docker run ghcr.io/26457513/assurance-scan-ci
+        (slim orchestrator, ~150 MB)
+                    │
+                    ├─▶ semgrep    (code analysis)      ┐ stock public
+                    ├─▶ gitleaks   (hardcoded secrets)  │ images, pulled
+                    ├─▶ trivy-fs   (dependency CVEs)    │ fresh at run
+                    ├─▶ grype      (dependency CVEs)    │ time via the
+                    ├─▶ osv-scanner(dependency CVEs)    │ docker socket
+                    ├─▶ trivy-config (Dockerfile/IaC)   │
+                    ├─▶ syft       (SBOM)               ┘
+                    └─▶ trivy-image (if the repo has a Dockerfile)
+                                │
+                                ▼
+            Step Summary · PR comment · SARIF/SBOM/findings artifact
+                                │
+                    (optional) assurance-scan instance
+                    polls your org's runs and mirrors
+                    findings into a hosted dashboard
+```
 
-### Step 1 — Register your organisation with an assurance-scan instance (optional)
+The orchestrator image contains only glue code — scanner invocation,
+output parsing, report generation. The scanners themselves run as their
+stock public images, so rules and vulnerability databases are current at
+every run with nothing pinned to maintain.
 
-Do this only if you want scan results collected into a hosted assurance-scan
-dashboard (findings browser, FR catalogues, deep links from your PRs). Skip
-it to use GitHub-native reports only.
+## Onboarding
 
-1. Ask the instance operator to open **Settings → GitHub organisations**,
-   or do it yourself if you have an account on the instance.
-2. Enter your **organisation name** and a **fine-grained personal access
-   token** created by an admin of your organisation:
-   - GitHub → Settings → Developer settings → Fine-grained tokens →
-     Generate new token.
-   - **Resource owner**: your organisation.
-   - **Repository access**: All repositories.
-   - **Permissions**: Actions → **Read-only**, Contents → **Read-only**
-     (add Actions → **Read and write** if you also want the UI's
-     *Scan now* button to work).
-   - Org policy note: if the token picker shows no repositories, your
-     organisation must first allow fine-grained PATs (org → Settings →
-     Personal access tokens → allow, no approval required).
-3. The instance verifies the token and starts ingesting your repos' scan
-   results within a minute. Remove the registration at any time from the
-   same screen.
+### 1. Add the workflow to a repository
 
-### Step 2 — Add the workflow file to a repository
-
-Create `.github/workflows/assurance-scan.yml` in the repository with exactly
-this content, replacing `<default branch>` (e.g. `main`) in the `push`
-section:
+Create `.github/workflows/assurance-scan.yml`:
 
 ```yaml
 name: assurance-scan
@@ -57,39 +61,51 @@ jobs:
     uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main
 ```
 
-Commit and push. The next push to your default branch (or any PR) runs the
-first scan — no secrets, no package grants, no other setup.
+Replace `<default branch>` (e.g. `main`), commit, push. The next push or PR
+runs the first scan. No secrets, no package grants, no other setup.
+
+### 2. Connect a dashboard (optional)
+
+To collect results into a hosted assurance-scan instance — findings
+browser, FR catalogues, deep links from PR comments into full reports —
+an admin of your organisation:
+
+1. Generates a fine-grained PAT: GitHub → Settings → Developer settings →
+   Fine-grained tokens → Generate.
+   - **Resource owner**: your organisation.
+   - **Repository access**: All repositories.
+   - **Permissions**: Contents → Read-only, Actions → Read-only
+     (Read **and write** to also enable the dashboard's *Scan now*
+     button).
+   - If the repository picker is empty: org → Settings → Personal access
+     tokens → allow fine-grained tokens, no approval required.
+2. Enters the org name and token into the instance's
+   **Settings → GitHub organisations**.
+
+The instance verifies the token and begins ingesting scan results within a
+minute. Registration can be removed at any time.
 
 ### Variants
 
-- **Manual-only** (zero minutes until triggered): delete the `pull_request`
-  and `push` triggers — scans then happen only via the UI's *Scan now*
-  button or a manual workflow dispatch.
-- **Blocked external references**: if your organisation's Actions policy
-  disallows `uses:` references to outside repositories, use the
-  self-contained copy at
-  [`templates/assurance-scan.yml`](templates/assurance-scan.yml) instead —
-  same behaviour, inlined steps.
+- **Manual-only** — delete the `pull_request` and `push` triggers; scans
+  run only when dispatched from the dashboard or the Actions tab.
+- **Restricted Actions policy** — if your org blocks `uses:` references to
+  external repositories, use the inlined copy at
+  [`templates/assurance-scan.yml`](templates/assurance-scan.yml).
 
 ## What each scan produces
 
-- A **Step Summary** on the run page: per-tool severity matrix with
-  runtimes, plus any scanner failures.
-- A **PR comment** (on pull requests) with the same summary, updated in
-  place per commit.
-- An **`assurance-scan-results` artifact**: SARIF findings, a CycloneDX
-  SBOM, and the normalized `findings.json`.
-- Repos with a root `Dockerfile` additionally get a Trivy image scan of
-  the built image.
-
-Scans never fail your workflow — scanner problems are listed in the summary.
-
-## Scanner set
-
-| Tier | Scanners |
+| Where | What |
 |---|---|
-| Always | semgrep (code), gitleaks (secrets), trivy-fs + grype + osv-scanner (dependencies), trivy-config (IaC/Dockerfile), syft (SBOM) |
-| With a Dockerfile | trivy-image (built image) |
+| Run page | Step Summary: per-tool severity matrix with runtimes |
+| Pull requests | Findings comment, updated in place per commit |
+| Artifact | `assurance-scan-results` — SARIF, CycloneDX SBOM, `findings.json` |
+| With a Dockerfile | Additional Trivy scan of the built image |
 
-All run as their stock public images — current rules and vulnerability
-databases at run time, with no pinned versions to maintain.
+Scans never fail the workflow; scanner problems appear in the summary.
+
+## Privacy
+
+The workflow runs entirely on your compute and reports only into your
+repository. Dashboard integration is opt-in (step 2) and read-only unless
+you explicitly grant Actions:Write for the *Scan now* button.
