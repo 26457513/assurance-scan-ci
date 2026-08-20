@@ -1,9 +1,11 @@
 # assurance-scan-ci
 
 CI security scanning for GitHub repositories — one workflow file, no secrets,
-no infrastructure. Scans run on **your** GitHub Actions compute using
-always-current open-source scanners; results land in your repo's Actions
-summary and PR comments, and optionally in the
+no infrastructure. Scans cover the codebase and, when a Dockerfile is
+present, the built container image — so you can be confident you're meeting
+your infosec requirements across both. Scans run on **your** GitHub Actions
+compute using always-current open-source scanners; results land in your
+repo's Actions summary and PR comments, and optionally in the
 [assurance-scan dashboard](https://scan.squease.ai) — where **only scan
 results** are ever sent: findings, scanner status, and repo/branch/commit
 metadata. No source code leaves your repository.
