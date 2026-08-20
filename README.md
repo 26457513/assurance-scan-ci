@@ -69,10 +69,11 @@ runs the first scan. No secrets, no package grants, no other setup.
 
 ### 2. Connect the assurance-scan dashboard (optional)
 
-To collect results into the hosted [assurance-scan
-dashboard](https://scan.squease.ai) — findings browser, FR catalogues,
-deep links from PR comments into full reports — an admin of your
-organisation:
+The [assurance-scan service
+dashboard](https://scan.squease.ai) displays scan results intuitively and
+relates them to software functional requirements and compliance regimes
+(ASVS and similar standards). To connect your organisation's results, an
+admin:
 
 1. Generates a fine-grained PAT: GitHub → Settings → Developer settings →
    Fine-grained tokens → Generate.
