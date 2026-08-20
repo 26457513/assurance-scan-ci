@@ -3,8 +3,10 @@
 CI security scanning for GitHub repositories — one workflow file, no secrets,
 no infrastructure. Scans run on **your** GitHub Actions compute using
 always-current open-source scanners; results land in your repo's Actions
-summary and PR comments, and optionally in a hosted
-[assurance-scan](https://github.com/26457513/assurance-scan) dashboard.
+summary and PR comments, and optionally in the
+[assurance-scan dashboard](https://scan.squease.ai) — where **only scan
+results** are ever sent: findings, scanner status, and repo/branch/commit
+metadata. No source code leaves your repository.
 
 ## Architecture
 
@@ -28,9 +30,10 @@ your repo ──push/PR──▶ GitHub Actions ──▶ scan.yml
                                 ▼
             Step Summary · PR comment · SARIF/SBOM/findings artifact
                                 │
-                    (optional) assurance-scan instance
-                    polls your org's runs and mirrors
-                    findings into a hosted dashboard
+                    (optional) assurance-scan service
+                    polls your org's run RESULTS ONLY
+                    into the hosted dashboard
+                    (scan.squease.ai)
 ```
 
 The orchestrator image contains only glue code — scanner invocation,
@@ -64,11 +67,12 @@ jobs:
 Replace `<default branch>` (e.g. `main`), commit, push. The next push or PR
 runs the first scan. No secrets, no package grants, no other setup.
 
-### 2. Connect a dashboard (optional)
+### 2. Connect the assurance-scan dashboard (optional)
 
-To collect results into a hosted assurance-scan instance — findings
-browser, FR catalogues, deep links from PR comments into full reports —
-an admin of your organisation:
+To collect results into the hosted [assurance-scan
+dashboard](https://scan.squease.ai) — findings browser, FR catalogues,
+deep links from PR comments into full reports — an admin of your
+organisation:
 
 1. Generates a fine-grained PAT: GitHub → Settings → Developer settings →
    Fine-grained tokens → Generate.
@@ -79,11 +83,11 @@ an admin of your organisation:
      button).
    - If the repository picker is empty: org → Settings → Personal access
      tokens → allow fine-grained tokens, no approval required.
-2. Enters the org name and token into the instance's
+2. Enters the org name and token into the dashboard's
    **Settings → GitHub organisations**.
 
-The instance verifies the token and begins ingesting scan results within a
-minute. Registration can be removed at any time.
+The service verifies the token and begins ingesting scan results — and
+nothing else — within a minute. Registration can be removed at any time.
 
 ### Variants
 
@@ -107,5 +111,8 @@ Scans never fail the workflow; scanner problems appear in the summary.
 ## Privacy
 
 The workflow runs entirely on your compute and reports only into your
-repository. Dashboard integration is opt-in (step 2) and read-only unless
-you explicitly grant Actions:Write for the *Scan now* button.
+repository. If you connect the assurance-scan dashboard (step 2), the
+service receives **scan results only** — findings, scanner status, and
+repo/branch/commit metadata. Your source code never leaves GitHub; the
+connection is read-only unless you explicitly grant Actions:Write for the
+*Scan now* button.
