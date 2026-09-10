@@ -161,7 +161,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          scan_url="$ASSURANCE_SCAN_URL/projects?run_id=gh-$GITHUB_REPOSITORY_ID-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          scan_url="$ASSURANCE_SCAN_URL/projects?run=gh-$GITHUB_REPOSITORY_ID-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           install -m 600 "$BUNDLE_PARENT/bundle/summary.md" "$BUNDLE_PARENT/pr-summary.md"
           printf '\n[View the full scan in Assurance Scan](%s)\n' "$scan_url" | tee -a \
             "$BUNDLE_PARENT/pr-summary.md" "$GITHUB_STEP_SUMMARY" >/dev/null
