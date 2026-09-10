@@ -1,129 +1,71 @@
 # assurance-scan-ci
 
-CI security scanning for GitHub repositories — one workflow file, no secrets,
-no infrastructure. Scans cover the codebase and, when a Dockerfile is
-present, the built container image — so you can be confident you're meeting
-your infosec requirements across both. Scans run on **your** GitHub Actions
-compute using always-current open-source scanners; results land in your
-repo's Actions summary and PR comments, and optionally in the
-[assurance-scan dashboard](https://scan.squease.ai) — where **only scan
-results** are ever sent: findings, scanner status, and repo/branch/commit
-metadata. No source code leaves your repository.
+Public GitHub Actions distribution for
+[Assurance Scan](https://scan.squease.ai).
 
-## Architecture
+This repository intentionally contains only:
 
-```
-your repo ──push/PR──▶ GitHub Actions ──▶ scan.yml
-                                            │
-                    ┌───────────────────────┘
-                    ▼
-        docker run ghcr.io/26457513/assurance-scan-ci
-        (slim orchestrator, ~150 MB)
-                    │
-                    ├─▶ semgrep    (code analysis)      ┐ stock public
-                    ├─▶ gitleaks   (hardcoded secrets)  │ images, pulled
-                    ├─▶ trivy-fs   (dependency CVEs)    │ fresh at run
-                    ├─▶ grype      (dependency CVEs)    │ time via the
-                    ├─▶ osv-scanner(dependency CVEs)    │ docker socket
-                    ├─▶ trivy-config (Dockerfile/IaC)   │
-                    ├─▶ syft       (SBOM)               ┘
-                    └─▶ trivy-image (if the repo has a Dockerfile)
-                                │
-                                ▼
-            Step Summary · PR comment · SARIF/SBOM/findings artifact
-                                │
-                    (optional) assurance-scan service
-                    polls your org's run RESULTS ONLY
-                    into the hosted dashboard
-                    (scan.squease.ai)
-```
+- the reusable GitHub Actions workflow;
+- the small caller template copied into consumer repositories; and
+- public documentation for that integration.
 
-The orchestrator image contains only glue code — scanner invocation,
-output parsing, report generation. The scanners themselves run as their
-stock public images, so rules and vulnerability databases are current at
-every run with nothing pinned to maintain.
+The Assurance Scan application, deployment configuration and scanner
+implementation source remain private. Runtime images are published separately
+through GHCR and are anonymously retrievable so GitHub-hosted runners can use
+them without package credentials.
 
-## Onboarding
+## Add Assurance Scan to a repository
 
-### 1. Add the workflow to a repository
+Use the Setup instructions in Assurance Scan, or copy
+[`templates/assurance-scan.yml`](templates/assurance-scan.yml) to
+`.github/workflows/assurance-scan.yml` on the repository's default branch.
 
-Create `.github/workflows/assurance-scan.yml`:
+The caller deliberately stays small:
 
 ```yaml
-name: assurance-scan
-on:
-  workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize]
-  push:
-    branches: [<default branch>]
-permissions:
-  contents: read
-  actions: write
-  pull-requests: write
 jobs:
   scan:
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
     uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main
 ```
 
-Replace `<default branch>` (e.g. `main`), commit, push. The next push or PR
-runs the first scan. No secrets, no package grants, no other setup.
+It scans:
 
-### 2. Connect the assurance-scan dashboard (optional)
+- pushes to the default branch; and
+- non-draft pull requests targeting the default branch when opened, reopened,
+  synchronized or marked ready for review.
 
-The [assurance-scan service
-dashboard](https://scan.squease.ai) displays scan results intuitively and
-relates them to software functional requirements and compliance regimes
-(ASVS and similar standards). To connect your organisation's results, an
-admin:
+Feature branches do not need their own copy of the workflow. Developers can use
+the local Assurance Scan container for branches that do not yet have a pull
+request targeting the default branch.
 
-1. Generates a fine-grained PAT:
-   - GitHub → click your avatar (top right) → **Settings** → scroll to the
-     bottom of the left menu → **Developer settings** → **Personal access
-     tokens → Fine-grained tokens** → **Generate new token**.
-   - **Resource owner**: your organisation (if it's not listed: org →
-     Settings → Personal access tokens → allow fine-grained tokens, no
-     approval required, then retry).
-   - **Repository access**: All repositories.
-   - **Permissions** (Repository permissions section): **Contents →
-     Read-only**, **Actions → Read-only** (Read **and write** to also
-     enable the dashboard's *Scan now* button).
-   - Generate, then copy the token (starts `github_pat_`).
-2. Enters the org name and token into the dashboard:
-   - Open the assurance-scan dashboard → sidebar **⚙ Settings** → the
-     **Organisation credentials** section (admins only).
-   - Type the organisation name exactly as it appears in GitHub URLs
-     (e.g. `acme-corp`, not `Acme Corp`).
-   - Paste the token → **Add org**. Verification is immediate — a green
-     confirmation names the org and how many repos are visible.
+## Trust and data flow
 
-The service verifies the token and begins ingesting scan results — and
-nothing else — within a minute. Registration can be removed at any time.
+The reusable workflow resolves the public producer and uploader images to exact
+digests, verifies their Sigstore signatures and verifies the signed release
+attestation binding the pair together. It then scans the checked-out revision
+on the GitHub runner and sends the bounded result bundle to Assurance Scan using
+a short-lived GitHub OIDC token.
 
-### Variants
+No Assurance Scan upload secret is stored in the consumer repository. Source
+code is mounted read-only into the scanner and is not uploaded to Assurance
+Scan. The upload contains normalized findings, scanner status, bounded source
+context, repository/branch/commit provenance, SARIF and the CycloneDX SBOM.
 
-- **Manual-only** — delete the `pull_request` and `push` triggers; scans
-  run only when dispatched from the dashboard or the Actions tab.
-- **Restricted Actions policy** — if your org blocks `uses:` references to
-  external repositories, use the inlined copy at
-  [`templates/assurance-scan.yml`](templates/assurance-scan.yml).
+The server accepts an upload only when GitHub's signed claims identify:
 
-## What each scan produces
+- an enabled GitHub App repository;
+- a push to its verified default branch or a pull request targeting it;
+- the expected caller path; and
+- this reusable workflow on protected `main`.
 
-| Where | What |
-|---|---|
-| Run page | Step Summary: per-tool severity matrix with runtimes |
-| Pull requests | Findings comment, updated in place per commit |
-| Artifact | `assurance-scan-results` — SARIF, CycloneDX SBOM, `findings.json` |
-| With a Dockerfile | Additional Trivy scan of the built image |
+## Public runtime packages
 
-Scans never fail the workflow; scanner problems appear in the summary.
+- `ghcr.io/26457513/assurance-scan-ci`
+- `ghcr.io/26457513/assurance-scan-ci-upload`
+- `ghcr.io/26457513/assurance-scan-cli`
 
-## Privacy
-
-The workflow runs entirely on your compute and reports only into your
-repository. If you connect the assurance-scan dashboard (step 2), the
-service receives **scan results only** — findings, scanner status, and
-repo/branch/commit metadata. Your source code never leaves GitHub; the
-connection is read-only unless you explicitly grant Actions:Write for the
-*Scan now* button.
+The hosted application image is not public.
