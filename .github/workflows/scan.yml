@@ -157,6 +157,14 @@ jobs:
             sleep "$((RANDOM % (ceiling + 1)))"
           done
 
+      - name: Add Assurance Scan result link
+        shell: bash
+        run: |
+          set -euo pipefail
+          scan_url="$ASSURANCE_SCAN_URL/scans/gh-$GITHUB_REPOSITORY_ID-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          printf '\n[View the full scan in Assurance Scan](%s)\n' "$scan_url" | tee -a \
+            "$BUNDLE_PARENT/bundle/summary.md" "$GITHUB_STEP_SUMMARY" >/dev/null
+
       - name: Publish PR scan summary
         if: github.event_name == 'pull_request'
         continue-on-error: true
