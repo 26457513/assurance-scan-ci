@@ -9,16 +9,20 @@ This repository intentionally contains only:
 - the small caller template copied into consumer repositories; and
 - public documentation for that integration.
 
-The Assurance Scan application, deployment configuration and scanner
-implementation source remain private. Runtime images are published separately
-through GHCR and are anonymously retrievable so GitHub-hosted runners can use
-them without package credentials.
+The Assurance Scan application repository and deployment configuration remain
+private. Runtime images are published separately through GHCR and are
+anonymously retrievable so GitHub-hosted runners can use them without package
+credentials. As with any public container image, the files shipped inside those
+runtime images can be downloaded and inspected.
 
 ## Add Assurance Scan to a repository
 
 Use the Setup instructions in Assurance Scan, or copy
 [`templates/assurance-scan.yml`](templates/assurance-scan.yml) to
 `.github/workflows/assurance-scan.yml` on the repository's default branch.
+The public copy uses `main`; replace both trigger values when a repository has a
+different default branch. The workflow generated inside Assurance Scan fills in
+the selected repository's actual default branch automatically.
 
 The caller deliberately stays small:
 
@@ -50,10 +54,11 @@ attestation binding the pair together. It then scans the checked-out revision
 on the GitHub runner and sends the bounded result bundle to Assurance Scan using
 a short-lived GitHub OIDC token.
 
-No Assurance Scan upload secret is stored in the consumer repository. Source
-code is mounted read-only into the scanner and is not uploaded to Assurance
-Scan. The upload contains normalized findings, scanner status, bounded source
-context, repository/branch/commit provenance, SARIF and the CycloneDX SBOM.
+No Assurance Scan upload secret is stored in the consumer repository. The full
+repository is mounted read-only into the scanner and is not uploaded wholesale.
+The upload contains normalized findings, scanner status, bounded code context
+around findings, repository/branch/commit provenance, SARIF and the CycloneDX
+SBOM.
 
 The server accepts an upload only when GitHub's signed claims identify:
 

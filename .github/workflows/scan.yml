@@ -143,13 +143,18 @@ jobs:
 
           for attempt in 1 2 3 4; do
             set +e
-            request_oidc | docker run --rm -i \
-              --read-only --user 65532:65532 --cap-drop ALL \
-              --security-opt no-new-privileges \
-              --tmpfs /tmp:rw,noexec,nosuid,size=16m \
-              --mount type=bind,src="$BUNDLE_PARENT/bundle",dst=/bundle,readonly \
-              "$UPLOAD_IMAGE" --url "$ASSURANCE_SCAN_URL" --bundle /bundle
+            oidc_token=$(request_oidc)
             status=$?
+            if [ "$status" -eq 0 ]; then
+              printf '%s' "$oidc_token" | docker run --rm -i \
+                --read-only --user 65532:65532 --cap-drop ALL \
+                --security-opt no-new-privileges \
+                --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+                --mount type=bind,src="$BUNDLE_PARENT/bundle",dst=/bundle,readonly \
+                "$UPLOAD_IMAGE" --url "$ASSURANCE_SCAN_URL" --bundle /bundle
+              status=$?
+            fi
+            unset oidc_token
             set -e
             if [ "$status" -eq 0 ]; then exit 0; fi
             if [ "$status" -ne 75 ] || [ "$attempt" -eq 4 ]; then exit "$status"; fi
