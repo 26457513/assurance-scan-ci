@@ -57,8 +57,14 @@ jobs:
           encoded_branch=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$branch")
           resolved_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded_branch" --jq '.object.sha')
           if [ "$resolved_sha" != "$REQUESTED_SHA" ]; then
-            echo 'The branch moved before this scan started; a newer run will scan its current revision.' >&2
-            exit 1
+            if ! relationship=$(gh api "repos/$GITHUB_REPOSITORY/compare/$REQUESTED_SHA...$resolved_sha" --jq '.status'); then
+              echo 'The selected commit is no longer reachable from this branch.' >&2
+              exit 1
+            fi
+            if [ "$relationship" != 'ahead' ] && [ "$relationship" != 'identical' ]; then
+              echo 'The selected commit is no longer reachable from this branch.' >&2
+              exit 1
+            fi
           fi
 
       - name: Check out the requested revision
