@@ -60,6 +60,10 @@ The upload contains normalized findings, scanner status, bounded code context
 around findings, repository/branch/commit provenance, SARIF and the CycloneDX
 SBOM.
 
+The pull-request summary links directly to the selected run's results. Its
+query-based focus survives sign-in redirects, while the matching fragment gives
+already authenticated browsers an immediate native anchor target.
+
 The server accepts an upload only when GitHub's signed claims identify:
 
 - an enabled GitHub App repository;
