@@ -6,6 +6,16 @@
 name: assurance-scan
 
 on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Branch ref selected by Assurance Scan
+        required: true
+        type: string
+      target_sha:
+        description: Immutable commit SHA selected by Assurance Scan
+        required: true
+        type: string
   push:
     branches: [main]
   pull_request:
@@ -13,14 +23,15 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
 
 concurrency:
-  group: assurance-scan-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: assurance-scan-${{ github.event.pull_request.number || inputs.target_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
 
 jobs:
   scan:
     if: >-
       (github.event_name == 'push' &&
        github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.base.ref == github.event.repository.default_branch &&
        github.event.pull_request.draft == false)
@@ -30,4 +41,7 @@ jobs:
       pull-requests: write
     # Public workflow orchestration; scanner implementation remains in signed
     # public images and the Assurance Scan application source stays private.
-    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@79e5d269299de46227fba7ebd4f6e63b945f9566
+    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@e16230170b318600b67883696d825ff90c61088a
+    with:
+      target_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_ref || '' }}
+      target_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || '' }}
