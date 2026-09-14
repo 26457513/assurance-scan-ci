@@ -9,6 +9,17 @@ name: assurance-scan
 
 on:
   workflow_call:
+    inputs:
+      target_ref:
+        description: Optional branch ref to scan instead of the triggering revision
+        required: false
+        type: string
+        default: ''
+      target_sha:
+        description: Optional immutable commit SHA resolved for the requested branch
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -25,11 +36,35 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - name: Check out the signed event revision
+      - name: Check out the requested revision
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.target_sha || github.sha }}
           persist-credentials: false
+
+      - name: Verify and record the requested revision
+        shell: bash
+        env:
+          REQUESTED_REF: ${{ inputs.target_ref }}
+          REQUESTED_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          actual_sha=$(git rev-parse HEAD)
+          if [ -n "$REQUESTED_SHA" ] && { ! [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$actual_sha" != "$REQUESTED_SHA" ]; }; then
+            echo 'The checked-out commit does not match the requested immutable SHA.' >&2
+            exit 1
+          fi
+          if [ -n "$REQUESTED_REF" ]; then
+            if ! [[ "$REQUESTED_REF" =~ ^refs/heads/[^[:space:]~^:?*\\[]+$ ]]; then
+              echo 'The requested scan ref is not a valid branch ref.' >&2
+              exit 1
+            fi
+            scan_ref="$REQUESTED_REF"
+          else
+            scan_ref="$GITHUB_REF"
+          fi
+          printf 'ASSURANCE_SCAN_SOURCE_SHA=%s\n' "$actual_sha" >> "$GITHUB_ENV"
+          printf 'ASSURANCE_SCAN_SOURCE_REF=%s\n' "$scan_ref" >> "$GITHUB_ENV"
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
@@ -104,7 +139,9 @@ jobs:
             -e GITHUB_REPOSITORY -e GITHUB_REPOSITORY_ID -e GITHUB_REPOSITORY_OWNER_ID \
             -e GITHUB_SERVER_URL \
             -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT \
-            -e GITHUB_EVENT_NAME -e GITHUB_REF -e GITHUB_SHA \
+            -e GITHUB_EVENT_NAME \
+            -e GITHUB_REF="$ASSURANCE_SCAN_SOURCE_REF" \
+            -e GITHUB_SHA="$ASSURANCE_SCAN_SOURCE_SHA" \
             -e GITHUB_HEAD_REF -e GITHUB_BASE_REF \
             -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_ACTOR -e GITHUB_ACTOR_ID \
             "$CI_IMAGE" /workspace --output /output/bundle \
