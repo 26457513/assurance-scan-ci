@@ -36,6 +36,31 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
+      - name: Validate the requested branch revision
+        if: inputs.target_ref != '' || inputs.target_sha != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_REF: ${{ inputs.target_ref }}
+          REQUESTED_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$REQUESTED_REF" ] || [ -z "$REQUESTED_SHA" ]; then
+            echo 'A dispatched scan requires both a branch ref and immutable SHA.' >&2
+            exit 1
+          fi
+          if [[ "$REQUESTED_REF" != refs/heads/* ]] || ! git check-ref-format "$REQUESTED_REF" || ! [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'The requested scan branch or commit is invalid.' >&2
+            exit 1
+          fi
+          branch=${REQUESTED_REF#refs/heads/}
+          encoded_branch=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$branch")
+          resolved_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded_branch" --jq '.object.sha')
+          if [ "$resolved_sha" != "$REQUESTED_SHA" ]; then
+            echo 'The branch moved before this scan started; a newer run will scan its current revision.' >&2
+            exit 1
+          fi
+
       - name: Check out the requested revision
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -55,10 +80,6 @@ jobs:
             exit 1
           fi
           if [ -n "$REQUESTED_REF" ]; then
-            if ! [[ "$REQUESTED_REF" =~ ^refs/heads/[^[:space:]~^:?*\\[]+$ ]]; then
-              echo 'The requested scan ref is not a valid branch ref.' >&2
-              exit 1
-            fi
             scan_ref="$REQUESTED_REF"
           else
             scan_ref="$GITHUB_REF"
