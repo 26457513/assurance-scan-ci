@@ -22,7 +22,7 @@ env:
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check out the signed event revision
@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload bounded diagnostic bundle
         if: always() && env.BUNDLE_PARENT != ''
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: assurance-scan-results
           path: ${{ env.BUNDLE_PARENT }}/bundle
