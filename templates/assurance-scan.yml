@@ -30,4 +30,4 @@ jobs:
       pull-requests: write
     # Public workflow orchestration; scanner implementation remains in signed
     # public images and the Assurance Scan application source stays private.
-    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main # nosemgrep: backend.assurance-scan.github-actions-mutable-reference
+    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@79e5d269299de46227fba7ebd4f6e63b945f9566

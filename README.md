@@ -33,7 +33,7 @@ jobs:
       contents: read
       id-token: write
       pull-requests: write
-    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main
+    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@79e5d269299de46227fba7ebd4f6e63b945f9566
 ```
 
 It scans:
